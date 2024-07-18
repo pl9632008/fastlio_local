@@ -38,6 +38,7 @@ g_pose = PoseWithCovarianceStamped()
 mtx = Lock()
 g_name = String()
 mtx_name = Lock()
+mtx_num = Lock()
 
 
 res = []
@@ -290,8 +291,9 @@ def handle_set_bool(req):
 
 def num_callback(msg):
     global num
-    num = msg.data
-    rospy.loginfo("Current num : %d",num)
+    with mtx_num:
+        num = msg.data
+        rospy.loginfo("Current num : %d",num)
 
 def name_callback(msg):
     global g_name
@@ -340,8 +342,11 @@ def cloud_callback(msg):
     done_pub.publish(done_msg)
     rospy.loginfo("done!!!!!!!!!")
 
+    cur_num = None
+    with mtx_num:
+        cur_num = num
     
-    if len(res) == num:
+    if len(res) == cur_num:
         max_value = max(res)
         max_index = res.index(max_value)
         name = names[max_index]
