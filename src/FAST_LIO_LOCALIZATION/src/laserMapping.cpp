@@ -409,6 +409,8 @@ void map_incremental()
     PointVector PointNoNeedDownsample;
     PointToAdd.reserve(feats_down_size);
     PointNoNeedDownsample.reserve(feats_down_size);
+
+
     for (int i = 0; i < feats_down_size; i++)
     {
         /* transform to world frame */
@@ -417,7 +419,7 @@ void map_incremental()
         if (!Nearest_Points[i].empty() && flg_EKF_inited)
         {
             const PointVector &points_near = Nearest_Points[i];
-            bool need_add = true;
+            bool need_add = true;// default true
             BoxPointType Box_of_Point;
             PointType downsample_result, mid_point; 
             mid_point.x = floor(feats_down_world->points[i].x/filter_size_map_min)*filter_size_map_min + 0.5 * filter_size_map_min;
@@ -426,6 +428,7 @@ void map_incremental()
             float dist  = calc_dist(feats_down_world->points[i],mid_point);
             if (fabs(points_near[0].x - mid_point.x) > 0.5 * filter_size_map_min && fabs(points_near[0].y - mid_point.y) > 0.5 * filter_size_map_min && fabs(points_near[0].z - mid_point.z) > 0.5 * filter_size_map_min){
                 PointNoNeedDownsample.push_back(feats_down_world->points[i]);
+                
                 continue;
             }
             for (int readd_i = 0; readd_i < NUM_MATCH_POINTS; readd_i ++)
@@ -437,16 +440,20 @@ void map_incremental()
                     break;
                 }
             }
-            if (need_add) PointToAdd.push_back(feats_down_world->points[i]);
+            if (need_add) {
+                    PointToAdd.push_back(feats_down_world->points[i]);
+            }
         }
         else
         {
             PointToAdd.push_back(feats_down_world->points[i]);
+
         }
     }
 
     double st_time = omp_get_wtime();
     add_point_size = ikdtree.Add_Points(PointToAdd, true);
+    // ROS_INFO("add_point_size, pointToAdd =  %d , PointNoNeedDownsample = %d",PointToAdd.size() ,PointNoNeedDownsample.size() );
     ikdtree.Add_Points(PointNoNeedDownsample, false); 
     add_point_size = PointToAdd.size() + PointNoNeedDownsample.size();
     kdtree_incremental_time = omp_get_wtime() - st_time;
@@ -891,6 +898,17 @@ int main(int argc, char** argv)
             int featsFromMapNum = ikdtree.validnum();
             kdtree_size_st = ikdtree.size();
             
+            int max_len;
+            nh.param<int>("max_len", max_len, 10000);
+
+            if(featsFromMapNum>max_len){
+                BoxPointType cus_range = ikdtree.tree_range();
+                std::vector<BoxPointType> res={cus_range};
+                ikdtree.Delete_Point_Boxes(res);
+                
+            }
+            
+            // ROS_INFO("PCL_Storage.size =  %d", ikdtree.PCL_Storage.size());
             // cout<<"[ mapping ]: In num: "<<feats_undistort->points.size()<<" downsamp "<<feats_down_size<<" Map num: "<<featsFromMapNum<<"effect num:"<<effct_feat_num<<endl;
 
             /*** ICP and iterated Kalman filter update ***/
@@ -900,6 +918,8 @@ int main(int argc, char** argv)
             V3D ext_euler = SO3ToEuler(state_point.offset_R_L_I);
             fout_pre<<setw(20)<<Measures.lidar_beg_time - first_lidar_time<<" "<<euler_cur.transpose()<<" "<< state_point.pos.transpose()<<" "<<ext_euler.transpose() << " "<<state_point.offset_T_L_I.transpose()<< " " << state_point.vel.transpose() \
             <<" "<<state_point.bg.transpose()<<" "<<state_point.ba.transpose()<<" "<<state_point.grav<< endl;
+
+
 
             if(0) // If you need to see map point, change to "if(1)"
             {
@@ -975,6 +995,35 @@ int main(int argc, char** argv)
                 dump_lio_state_to_log(fp);
             }
         }
+
+
+
+        //     if(1){
+
+        //         ikdtree.delete_tree_nodes(&ikdtree.Root_Node);
+        //         PointVector().swap(ikdtree.PCL_Storage);
+
+        //     }
+
+
+
+        // if(ikdtree.Root_Node == nullptr)
+        //     {
+        //         if(feats_down_size > 5)
+        //         {
+        //             ikdtree.set_downsample_param(filter_size_map_min);
+        //             feats_down_world->resize(feats_down_size);
+        //             for(int i = 0; i < feats_down_size; i++)
+        //             {
+        //                 pointBodyToWorld(&(feats_down_body->points[i]), &(feats_down_world->points[i]));
+        //             }
+        //             ikdtree.Build(feats_down_world->points);
+        //         }
+        //         continue;
+        //     }
+
+
+
 
         status = ros::ok();
         rate.sleep();

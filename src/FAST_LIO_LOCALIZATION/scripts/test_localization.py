@@ -22,6 +22,7 @@ from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
 
 import ros_numpy
 import std_msgs.msg
+import threading
 
 
 global_map = None
@@ -39,6 +40,7 @@ mtx = Lock()
 g_name = String()
 mtx_name = Lock()
 mtx_num = Lock()
+mtx_result_name = Lock()
 
 
 res = []
@@ -53,6 +55,7 @@ ros_cloud = None
 pub_cusmap = None
 pub_score = None
 
+final_result_name = None
 
 def pose_to_mat(pose_msg):
     return np.matmul(
@@ -282,6 +285,18 @@ def global_localization2(pose_estimation):
     return True, fitness
 
 
+def message_sender():
+
+    rospy.wait_for_message("/find_map_done", Bool)
+    rate = rospy.Rate(10) 
+    while not rospy.is_shutdown():
+        res_name = String()
+        with mtx_result_name:
+            res_name.data = final_result_name
+        pub_final_name.publish(res_name)
+        # rospy.loginfo('final_name =  {}'.format(res_name.data))
+        rate.sleep()
+
 
 def handle_set_bool(req):
     rospy.loginfo("Request received: data=%s", req.data)
@@ -306,7 +321,7 @@ def pose_callback(msg):
         g_pose = msg
    
 def cloud_callback(msg):
-    global result_pose, ros_cloud
+    global result_pose, ros_cloud, final_result_name
     rospy.loginfo("Received a point cloud")
 
     cur_pose = PoseWithCovarianceStamped()
@@ -355,9 +370,12 @@ def cloud_callback(msg):
         rospy.logwarn("final_map_result = %s",name)
 
 
-        res_name = String()
-        res_name.data = name
-        pub_final_name.publish(res_name)
+        with mtx_result_name:
+            final_result_name = name
+
+        # res_name = String()
+        # res_name.data = name
+        # pub_final_name.publish(res_name)
 
         map_path = rospy.get_param('map_path', '')
         file_path = map_path + "/" + name + ".pcd"
@@ -412,13 +430,17 @@ if __name__ == '__main__':
     
 
     # FOV(rad), modify this according to your LiDAR type
-    FOV = 1.6
+    # FOV = 1.6
+    FOV = 2.09
 
     # The farthest distance(meters) within FOV
     FOV_FAR = 150
 
     rospy.init_node('fast_lio_localization')
     rospy.loginfo('Localization Node Inited...')
+
+    sender_thread = threading.Thread(target=message_sender)
+    sender_thread.start()
 
 
     # publisher
@@ -476,6 +498,8 @@ if __name__ == '__main__':
     rospy.loginfo('')
     # 开始定期全局定位
     thread.start_new_thread(thread_localization, ())
+
+
 
     rospy.spin()
 

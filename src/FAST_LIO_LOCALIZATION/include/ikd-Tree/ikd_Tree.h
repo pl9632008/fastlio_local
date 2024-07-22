@@ -296,7 +296,6 @@ private:
     bool Criterion_Check(KD_TREE_NODE *root);
     void Push_Down(KD_TREE_NODE *root);
     void Update(KD_TREE_NODE *root);
-    void delete_tree_nodes(KD_TREE_NODE **root);
     void downsample(KD_TREE_NODE **root);
     bool same_point(PointType a, PointType b);
     float calc_dist(PointType a, PointType b);
@@ -306,6 +305,9 @@ private:
     static bool point_cmp_z(PointType a, PointType b);
 
 public:
+
+    void delete_tree_nodes(KD_TREE_NODE **root);
+
     KD_TREE(float delete_param = 0.5, float balance_param = 0.6, float box_length = 0.2);
     ~KD_TREE();
     void Set_delete_criterion_param(float delete_param)

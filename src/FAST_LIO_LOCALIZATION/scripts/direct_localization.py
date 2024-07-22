@@ -185,13 +185,13 @@ def global_localization(pose_estimation):
 
     # 当全局定位成功时才更新map2odom
     if initialized == False:
-        LOCALIZATION_TH = 0.7
+        LOCALIZATION_TH = 0.65
         
     elif initialized == True:
 
         LOCALIZATION_TH = max(LOCALIZATION_TH , max_score)
-        if LOCALIZATION_TH > 0.91:
-            LOCALIZATION_TH = 0.91
+        if LOCALIZATION_TH > 0.9:
+            LOCALIZATION_TH = 0.9
 
     rospy.loginfo('LOCALIZATION_TH: {}'.format(LOCALIZATION_TH))
 
@@ -281,9 +281,13 @@ if __name__ == '__main__':
     
 
     # FOV(rad), modify this according to your LiDAR type
-    FOV = 1.6
+    # FOV = 1.6
+    FOV = 2.09
+
+
 
     # The farthest distance(meters) within FOV
+    # FOV_FAR = 150
     FOV_FAR = 150
 
     rospy.init_node('fast_lio_localization')
