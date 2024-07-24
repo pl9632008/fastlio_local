@@ -57,6 +57,8 @@ pub_score = None
 
 final_result_name = None
 
+select_map_done = False
+
 def pose_to_mat(pose_msg):
     return np.matmul(
         tf.listener.xyz_to_mat44(pose_msg.pose.pose.position),
@@ -253,8 +255,8 @@ def cb_save_cur_scan(pc_msg):
 
 
 def thread_localization():
-    global T_map_to_odom
-    while True:
+    global T_map_to_odom ,select_map_done
+    while True and select_map_done:
         # 每隔一段时间进行全局定位
         rospy.sleep(1 / FREQ_LOCALIZATION)
         # TODO 由于这里Fast lio发布的scan是已经转换到odom系下了 所以每次全局定位的初始解就是上一次的map2odom 不需要再拿odom了
@@ -319,11 +321,14 @@ def pose_callback(msg):
     global g_pose
     with mtx:
         g_pose = msg
+
+
    
 def cloud_callback(msg):
-    global result_pose, ros_cloud, final_result_name
+    global result_pose, ros_cloud, final_result_name, res, names, all_poses,select_map_done
     rospy.loginfo("Received a point cloud")
 
+    select_map_done = False
     cur_pose = PoseWithCovarianceStamped()
     with mtx:
         cur_pose = g_pose
@@ -412,6 +417,12 @@ def cloud_callback(msg):
 
         rospy.logwarn("here!!!!!!")
 
+        res = []
+        names = []
+        all_poses = []
+        init = False
+        select_map_done = True
+
 
 
 
@@ -467,41 +478,40 @@ if __name__ == '__main__':
     pub_score = rospy.Publisher("/current_score", Float64, queue_size=1)
 
 
+    while True:
+
+        rospy.logwarn('Waiting for find_map_done......')
+        rospy.wait_for_message("/find_map_done", Bool)
+
+        # 初始化全局地图
+        rospy.logwarn('Waiting for global map......')
+        # initialize_global_map(rospy.wait_for_message('/map', PointCloud2))
+
+        initialize_global_map(ros_cloud)
 
 
-    rospy.logwarn('Waiting for find_map_done......')
-    rospy.wait_for_message("/find_map_done", Bool)
+        # 初始化
+        while not initialized:
+            rospy.logwarn('Waiting for initial pose....')
 
-    # 初始化全局地图
-    rospy.logwarn('Waiting for global map......')
-    # initialize_global_map(rospy.wait_for_message('/map', PointCloud2))
+            pose_msg = result_pose
 
-    initialize_global_map(ros_cloud)
+            # 等待初始位姿
+            # pose_msg = rospy.wait_for_message('/initialpose', PoseWithCovarianceStamped)
+            initial_pose = pose_to_mat(pose_msg)
+            if cur_scan:
+                initialized = global_localization(initial_pose)
+            else:
+                rospy.logwarn('First scan not received!!!!!')
 
-
-    # 初始化
-    while not initialized:
-        rospy.logwarn('Waiting for initial pose....')
-
-        pose_msg = result_pose
-
-        # 等待初始位姿
-        # pose_msg = rospy.wait_for_message('/initialpose', PoseWithCovarianceStamped)
-        initial_pose = pose_to_mat(pose_msg)
-        if cur_scan:
-            initialized = global_localization(initial_pose)
-        else:
-            rospy.logwarn('First scan not received!!!!!')
-
-    rospy.loginfo('')
-    rospy.loginfo('Initialize successfully!!!!!!')
-    rospy.loginfo('')
-    # 开始定期全局定位
-    thread.start_new_thread(thread_localization, ())
+        rospy.loginfo('')
+        rospy.loginfo('Initialize successfully!!!!!!')
+        rospy.loginfo('')
+        # 开始定期全局定位
+        thread.start_new_thread(thread_localization, ())
 
 
-
-    rospy.spin()
+    # rospy.spin()
 
 
 

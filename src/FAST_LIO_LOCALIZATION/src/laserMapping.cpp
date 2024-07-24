@@ -736,7 +736,7 @@ int main(int argc, char** argv)
 {
     ros::init(argc, argv, "laserMapping");
     ros::NodeHandle nh;
-
+    
     nh.param<bool>("publish/scan_publish_en",scan_pub_en,1);
     nh.param<bool>("publish/dense_publish_en",dense_pub_en,1);
     nh.param<bool>("publish/scan_bodyframe_pub_en",scan_body_pub_en,1);

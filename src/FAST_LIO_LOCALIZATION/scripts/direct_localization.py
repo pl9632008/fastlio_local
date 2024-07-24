@@ -185,7 +185,7 @@ def global_localization(pose_estimation):
 
     # 当全局定位成功时才更新map2odom
     if initialized == False:
-        LOCALIZATION_TH = 0.65
+        LOCALIZATION_TH = 0.6
         
     elif initialized == True:
 
