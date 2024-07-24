@@ -42,7 +42,6 @@ mtx_name = Lock()
 mtx_num = Lock()
 mtx_result_name = Lock()
 
-
 res = []
 names = []
 all_poses = []
@@ -54,9 +53,7 @@ result_pose = None
 ros_cloud = None
 pub_cusmap = None
 pub_score = None
-
 final_result_name = None
-
 select_map_done = False
 
 def pose_to_mat(pose_msg):
@@ -186,8 +183,8 @@ def global_localization(pose_estimation):
     elif initialized == True:
 
         LOCALIZATION_TH = max(LOCALIZATION_TH , max_score)
-        if LOCALIZATION_TH > 0.91:
-            LOCALIZATION_TH = 0.91
+        if LOCALIZATION_TH > 0.9:
+            LOCALIZATION_TH = 0.9
 
     rospy.loginfo('LOCALIZATION_TH: {}'.format(LOCALIZATION_TH))
 
@@ -326,7 +323,7 @@ def pose_callback(msg):
    
 def cloud_callback(msg):
     global result_pose, ros_cloud, final_result_name, res, names, all_poses,select_map_done
-    rospy.loginfo("Received a point cloud")
+    rospy.loginfo("Received point clouds ")
 
     select_map_done = False
     cur_pose = PoseWithCovarianceStamped()
@@ -352,7 +349,6 @@ def cloud_callback(msg):
             names.append(cur_name.data)
             all_poses.append(cur_pose)
             rospy.logwarn("cur_name = %s", cur_name.data)
-
         else:
             # rospy.logwarn('First scan not received!!!!!')
             pass
@@ -488,7 +484,6 @@ if __name__ == '__main__':
         # initialize_global_map(rospy.wait_for_message('/map', PointCloud2))
 
         initialize_global_map(ros_cloud)
-
 
         # 初始化
         while not initialized:

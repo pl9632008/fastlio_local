@@ -16,7 +16,8 @@ import numpy as np
 import tf
 import tf.transformations
 import std_msgs.msg
-
+from threading import Lock
+import threading
 from std_msgs.msg import Bool, String, Int32, Float64
 
 
@@ -31,10 +32,47 @@ pub_cusmap = None
 ros_cloud = None
 pub_score = None
 
+final_result_name = None
+pub_final_name = None
+result_pose = None
+
+mtx_result_name = Lock()
+
+def message_sender():
+    global final_result_name
+    rospy.wait_for_message("/find_map_done", Bool)
+    rate = rospy.Rate(10) 
+    while not rospy.is_shutdown():
+        res_name = String()
+        with mtx_result_name:
+            res_name.data = final_result_name
+        pub_final_name.publish(res_name)
+        # rospy.loginfo('final_name =  {}'.format(res_name.data))
+        rate.sleep()
+
+
+
 
 def direct_load_map():
-    global ros_cloud
+    global ros_cloud,final_result_name,result_pose
     direct_map_path = rospy.get_param('direct_map_path', '')
+    with mtx_result_name:
+        final_result_name = direct_map_path.split("/")[-1].split(".")[0]
+
+    pose_list = rospy.get_param(final_result_name)
+    pose_with_cov_stamped = PoseWithCovarianceStamped()
+    pose_with_cov_stamped.header.stamp = rospy.Time.now()
+    pose_with_cov_stamped.header.frame_id = "map"
+    pose_with_cov_stamped.pose.pose.position.x = pose_list[0]
+    pose_with_cov_stamped.pose.pose.position.y = pose_list[1]
+    pose_with_cov_stamped.pose.pose.position.z = pose_list[2]
+    pose_with_cov_stamped.pose.pose.orientation.x = pose_list[3]
+    pose_with_cov_stamped.pose.pose.orientation.y = pose_list[4]
+    pose_with_cov_stamped.pose.pose.orientation.z = pose_list[5]
+    pose_with_cov_stamped.pose.pose.orientation.w = pose_list[6]
+    pose_with_cov_stamped.pose.covariance = [0] * 36
+
+    result_pose = pose_with_cov_stamped
 
     rospy.logwarn(direct_map_path)
 
@@ -292,6 +330,8 @@ if __name__ == '__main__':
 
     rospy.init_node('fast_lio_localization')
     rospy.loginfo('Localization Node Inited...')
+    sender_thread = threading.Thread(target=message_sender)
+    sender_thread.start()
 
     # publisher
     pub_pc_in_map = rospy.Publisher('/cur_scan_in_map', PointCloud2, queue_size=1)
@@ -303,6 +343,8 @@ if __name__ == '__main__':
 
     pub_cusmap = rospy.Publisher('/map', PointCloud2, queue_size=1)
     pub_score = rospy.Publisher("/current_score", Float64, queue_size=1)
+    pub_final_name = rospy.Publisher("/final_name", String, queue_size=1)
+    all_done = rospy.Publisher("/find_map_done", Bool, queue_size=1)
 
 
     # 初始化全局地图
@@ -310,13 +352,24 @@ if __name__ == '__main__':
     #initialize_global_map(rospy.wait_for_message('/map', PointCloud2))
     direct_load_map()
     initialize_global_map(ros_cloud)
+
+
+    all_done_msg = Bool()
+    all_done_msg.data = True
+    all_done.publish(all_done_msg)
+
     
     # 初始化
     while not initialized:
         rospy.logwarn('Waiting for initial pose....')
 
         # 等待初始位姿
-        pose_msg = rospy.wait_for_message('/initialpose', PoseWithCovarianceStamped)
+        use_config_pose = rospy.get_param("use_config_pose","")
+        if use_config_pose:
+            pose_msg = result_pose
+        else:
+            pose_msg = rospy.wait_for_message('/initialpose', PoseWithCovarianceStamped)
+        
         initial_pose = pose_to_mat(pose_msg)
         if cur_scan:
             print(cur_scan)
