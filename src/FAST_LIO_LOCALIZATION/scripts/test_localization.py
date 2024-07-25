@@ -356,7 +356,7 @@ def cloud_callback(msg):
     done_msg = Bool()
     done_msg.data = True
     done_pub.publish(done_msg)
-    rospy.loginfo("done!!!!!!!!!")
+    rospy.loginfo("publish processing_done over!")
 
     cur_num = None
     with mtx_num:
@@ -406,12 +406,11 @@ def cloud_callback(msg):
         pub_cusmap.publish(ros_cloud)
 
 
-
         all_done_msg = Bool()
         all_done_msg.data = True
         all_done.publish(all_done_msg)
 
-        rospy.logwarn("here!!!!!!")
+        rospy.logwarn("publish all_done!")
 
         res = []
         names = []
@@ -432,9 +431,7 @@ if __name__ == '__main__':
 
     # The threshold of global localization,
     # only those scan2map-matching with higher fitness than LOCALIZATION_TH will be taken
-    LOCALIZATION_TH = 0.95
-    LOCALIZATION_INI = 0.75
-    
+    LOCALIZATION_TH = 0.95    
 
     # FOV(rad), modify this according to your LiDAR type
     # FOV = 1.6

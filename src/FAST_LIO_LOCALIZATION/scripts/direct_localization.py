@@ -315,13 +315,11 @@ if __name__ == '__main__':
     # The threshold of global localization,
     # only those scan2map-matching with higher fitness than LOCALIZATION_TH will be taken
     LOCALIZATION_TH = 0.95
-    LOCALIZATION_INI = 0.75
     
 
     # FOV(rad), modify this according to your LiDAR type
     # FOV = 1.6
     FOV = 2.09
-
 
 
     # The farthest distance(meters) within FOV
