@@ -490,6 +490,7 @@ if __name__ == '__main__':
             rospy.logwarn('Waiting for initial pose....')
 
             pose_msg = result_pose
+            rospy.sleep(0.05)
 
             # 等待初始位姿
             # pose_msg = rospy.wait_for_message('/initialpose', PoseWithCovarianceStamped)

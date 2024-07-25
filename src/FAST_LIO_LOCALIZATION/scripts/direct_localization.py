@@ -358,15 +358,17 @@ if __name__ == '__main__':
     all_done_msg.data = True
     all_done.publish(all_done_msg)
 
-    
+    use_config_pose = rospy.get_param("use_config_pose","")
+
     # 初始化
     while not initialized:
         rospy.logwarn('Waiting for initial pose....')
 
         # 等待初始位姿
-        use_config_pose = rospy.get_param("use_config_pose","")
         if use_config_pose:
             pose_msg = result_pose
+            rospy.sleep(0.1)
+
         else:
             pose_msg = rospy.wait_for_message('/initialpose', PoseWithCovarianceStamped)
         
