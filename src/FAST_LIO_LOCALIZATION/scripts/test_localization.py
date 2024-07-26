@@ -391,7 +391,7 @@ def cloud_callback(msg):
 
         initial_pose = pose_to_mat(pose_with_cov_stamped)
 
-        temp_initial_pose.append(initial_pose)
+        temp_initial_pose.append(pose_with_cov_stamped)
 
         init = False
         while not init:
@@ -486,8 +486,8 @@ def cloud_callback(msg):
 
 
 if __name__ == '__main__':
-    MAP_VOXEL_SIZE = 0.4
-    SCAN_VOXEL_SIZE = 0.1
+    MAP_VOXEL_SIZE = 0.8
+    SCAN_VOXEL_SIZE = 0.2
 
     # Global localization frequency (HZ)
     FREQ_LOCALIZATION = 0.5
