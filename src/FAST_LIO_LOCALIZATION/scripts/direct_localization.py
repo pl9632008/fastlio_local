@@ -36,6 +36,7 @@ final_result_name = None
 pub_final_name = None
 result_pose = None
 
+
 mtx_result_name = Lock()
 
 def message_sender():
@@ -59,18 +60,20 @@ def direct_load_map():
     with mtx_result_name:
         final_result_name = direct_map_path.split("/")[-1].split(".")[0]
 
-    pose_list = rospy.get_param(final_result_name)
+    pose_list = rospy.get_param(final_result_name,'')
     pose_with_cov_stamped = PoseWithCovarianceStamped()
     pose_with_cov_stamped.header.stamp = rospy.Time.now()
     pose_with_cov_stamped.header.frame_id = "map"
-    pose_with_cov_stamped.pose.pose.position.x = pose_list[0]
-    pose_with_cov_stamped.pose.pose.position.y = pose_list[1]
-    pose_with_cov_stamped.pose.pose.position.z = pose_list[2]
-    pose_with_cov_stamped.pose.pose.orientation.x = pose_list[3]
-    pose_with_cov_stamped.pose.pose.orientation.y = pose_list[4]
-    pose_with_cov_stamped.pose.pose.orientation.z = pose_list[5]
-    pose_with_cov_stamped.pose.pose.orientation.w = pose_list[6]
-    pose_with_cov_stamped.pose.covariance = [0] * 36
+
+    if len(pose_list) != 0:
+        pose_with_cov_stamped.pose.pose.position.x = pose_list[0]
+        pose_with_cov_stamped.pose.pose.position.y = pose_list[1]
+        pose_with_cov_stamped.pose.pose.position.z = pose_list[2]
+        pose_with_cov_stamped.pose.pose.orientation.x = pose_list[3]
+        pose_with_cov_stamped.pose.pose.orientation.y = pose_list[4]
+        pose_with_cov_stamped.pose.pose.orientation.z = pose_list[5]
+        pose_with_cov_stamped.pose.pose.orientation.w = pose_list[6]
+        pose_with_cov_stamped.pose.covariance = [0] * 36
 
     result_pose = pose_with_cov_stamped
 
@@ -364,6 +367,8 @@ if __name__ == '__main__':
     pub_final_name = rospy.Publisher("/final_name", String, queue_size=1)
     all_done = rospy.Publisher("/find_map_done", Bool, queue_size=1)
 
+    use_config_pose = rospy.get_param("use_config_pose","")
+
 
     # 初始化全局地图
     rospy.logwarn('Waiting for global map......')
@@ -376,7 +381,6 @@ if __name__ == '__main__':
     all_done_msg.data = True
     all_done.publish(all_done_msg)
 
-    use_config_pose = rospy.get_param("use_config_pose","")
 
     # 初始化
     while not initialized:

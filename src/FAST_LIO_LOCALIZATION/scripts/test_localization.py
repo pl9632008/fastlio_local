@@ -180,8 +180,9 @@ def global_localization(pose_estimation):
 
     # 当全局定位成功时才更新map2odom
     if initialized == False:
-        LOCALIZATION_TH = 0.75
-        
+        if fitness < LOCALIZATION_TH:
+            LOCALIZATION_TH -= 0.05
+
     elif initialized == True:
 
         LOCALIZATION_TH = max(LOCALIZATION_TH , max_score)
@@ -486,15 +487,15 @@ def cloud_callback(msg):
 
 
 if __name__ == '__main__':
-    MAP_VOXEL_SIZE = 0.8
-    SCAN_VOXEL_SIZE = 0.2
+    MAP_VOXEL_SIZE = 0.4
+    SCAN_VOXEL_SIZE = 0.1
 
     # Global localization frequency (HZ)
     FREQ_LOCALIZATION = 0.5
 
     # The threshold of global localization,
     # only those scan2map-matching with higher fitness than LOCALIZATION_TH will be taken
-    LOCALIZATION_TH = 0.95    
+    LOCALIZATION_TH = 0.7    
 
     # FOV(rad), modify this according to your LiDAR type
     # FOV = 1.6
@@ -544,6 +545,7 @@ if __name__ == '__main__':
         initialize_global_map2(ros_cloud)
 
         # 初始化
+        initialized = False
         while not initialized:
             rospy.logwarn('Waiting for initial pose....')
 
