@@ -23,7 +23,7 @@
 	<!-- loalization-->
 	<node pkg="fast_lio_localization" type="test_localization.py" name="global_localization" output="screen" />
 
-	<param name="map_path" type="string" value="/home/nvidia/wjd/fastlio/src/FAST_LIO/PCD" />
+	<param name="map_path" type="string" value="/home/wheeltec/wjd/fastlio/src/FAST_LIO/PCD" />
 
 	<!-- transform  fusion-->
 	<node pkg="fast_lio_localization" type="transform_fusion.py" name="transform_fusion" output="screen" />

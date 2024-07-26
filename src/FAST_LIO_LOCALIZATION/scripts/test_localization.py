@@ -15,12 +15,11 @@ import numpy as np
 import tf
 import tf.transformations
 
-from std_msgs.msg import Bool, String, Int32, Float64
+from std_msgs.msg import Bool, String, Int32, Float64, Float64MultiArray
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from threading import Lock
 from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
 
-import ros_numpy
 import std_msgs.msg
 import threading
 
@@ -41,10 +40,13 @@ g_name = String()
 mtx_name = Lock()
 mtx_num = Lock()
 mtx_result_name = Lock()
+mtx_pose_arr = Lock()
 
 res = []
 names = []
 all_poses = []
+
+g_pose_arr = []
 num = -1
 
 all_done = None
@@ -228,6 +230,18 @@ def initialize_global_map(pc_msg):
     rospy.loginfo('Global map received.')
 
 
+
+def initialize_global_map2(pc_msg):
+    global global_map, ros_cloud
+
+    global_map = o3d.geometry.PointCloud()
+    global_map.points = o3d.utility.Vector3dVector(msg_to_array(pc_msg)[:, :3])
+    global_map = voxel_down_sample(global_map, MAP_VOXEL_SIZE)
+    ros_cloud = None
+    rospy.loginfo('Global map received, clear ros_cloud !')
+
+
+
 def cb_save_cur_odom(odom_msg):
     global cur_odom
     cur_odom = odom_msg
@@ -319,10 +333,14 @@ def pose_callback(msg):
     with mtx:
         g_pose = msg
 
+def pose_arr_callback(msg):
+    global g_pose_arr
+    with mtx_pose_arr:
+        g_pose_arr = msg.data
 
    
 def cloud_callback(msg):
-    global result_pose, ros_cloud, final_result_name, res, names, all_poses,select_map_done
+    global result_pose, ros_cloud, final_result_name, res, names, all_poses,select_map_done,g_pose_arr
     rospy.loginfo("Received point clouds ")
 
     select_map_done = False
@@ -334,29 +352,63 @@ def cloud_callback(msg):
     with mtx_name:
         cur_name = g_name
 
-    # rospy.loginfo("Current PoseWithCovarianceStamped: [%.2f, %.2f, %.2f], [%.2f, %.2f, %.2f, %.2f]",
-    #     cur_pose.pose.pose.position.x, cur_pose.pose.pose.position.y, cur_pose.pose.pose.position.z,
-    #     cur_pose.pose.pose.orientation.x, cur_pose.pose.pose.orientation.y, cur_pose.pose.pose.orientation.z, cur_pose.pose.pose.orientation.w)
-    
-    initialize_global_map(msg)
-    initial_pose = pose_to_mat(cur_pose)
+    cur_pose_arr=[]
+    with mtx_pose_arr:
+        cur_pose_arr = g_pose_arr
+ 
 
-    init = False
-    while not init:
-        if cur_scan:
-            init, score = global_localization2(initial_pose)
-            res.append(score)
-            names.append(cur_name.data)
-            all_poses.append(cur_pose)
-            rospy.logwarn("cur_name = %s", cur_name.data)
-        else:
-            # rospy.logwarn('First scan not received!!!!!')
-            pass
-    
-    done_msg = Bool()
-    done_msg.data = True
-    done_pub.publish(done_msg)
-    rospy.loginfo("publish processing_done over!")
+    initialize_global_map(msg)
+
+
+    # initial_pose = pose_to_mat(cur_pose)
+    # init = False
+    # while not init:
+    #     if cur_scan:
+    #         init, score = global_localization2(initial_pose)
+    #         res.append(score)
+    #         names.append(cur_name.data)
+    #         all_poses.append(cur_pose)
+    #         rospy.logwarn("cur_name = %s", cur_name.data)
+    #     else:
+    #         # rospy.logwarn('First scan not received!!!!!')
+    #         pass
+
+    temp_res=[]
+    temp_initial_pose=[]
+    for i in range(len(cur_pose_arr)//7):
+
+        pose_with_cov_stamped = PoseWithCovarianceStamped()
+        pose_with_cov_stamped.header.stamp = rospy.Time.now()
+        pose_with_cov_stamped.header.frame_id = "map"
+        pose_with_cov_stamped.pose.pose.position.x = cur_pose_arr[i*7+0]
+        pose_with_cov_stamped.pose.pose.position.y = cur_pose_arr[i*7+1]
+        pose_with_cov_stamped.pose.pose.position.z = cur_pose_arr[i*7+2]
+        pose_with_cov_stamped.pose.pose.orientation.x = cur_pose_arr[i*7+3]
+        pose_with_cov_stamped.pose.pose.orientation.y = cur_pose_arr[i*7+4]
+        pose_with_cov_stamped.pose.pose.orientation.z = cur_pose_arr[i*7+5]
+        pose_with_cov_stamped.pose.pose.orientation.w = cur_pose_arr[i*7+6]
+        pose_with_cov_stamped.pose.covariance = [0] * 36
+
+        initial_pose = pose_to_mat(pose_with_cov_stamped)
+
+        temp_initial_pose.append(initial_pose)
+
+        init = False
+        while not init:
+            if cur_scan:
+                init, score = global_localization2(initial_pose)
+                temp_res.append(score)
+                rospy.logwarn("name = {} ,index = {}, score = {}".format(cur_name.data,i,score))
+
+            else:
+                # rospy.logwarn('First scan not received!!!!!')
+                pass
+
+    max_index = temp_res.index(max(temp_res))
+    res.append( temp_res[max_index] )
+    names.append(cur_name.data)
+    all_poses.append( temp_initial_pose[max_index] )
+
 
     cur_num = None
     with mtx_num:
@@ -386,6 +438,8 @@ def cloud_callback(msg):
         o3d_cloud = o3d.io.read_point_cloud(file_path)
         points = np.asarray(o3d_cloud.points)
 
+        o3d_cloud = None
+
         data = np.zeros(len(points), dtype=[
                 ('x', np.float32),
                 ('y', np.float32),
@@ -397,8 +451,13 @@ def cloud_callback(msg):
         data['z'] = points[:, 2]
         if points.shape[1] == 4:
             data['intensity'] = points[:, 3]
+        
+        points = None
+
         ros_cloud = ros_numpy.msgify(PointCloud2, data)
 
+        data = None
+        
         header = std_msgs.msg.Header()
         header.stamp = rospy.Time.now()
         header.frame_id = 'map'
@@ -418,6 +477,10 @@ def cloud_callback(msg):
         init = False
         select_map_done = True
 
+    done_msg = Bool()
+    done_msg.data = True
+    done_pub.publish(done_msg)
+    rospy.loginfo("publish processing_done over!")
 
 
 
@@ -455,7 +518,6 @@ if __name__ == '__main__':
     rospy.Subscriber('/cloud_registered', PointCloud2, cb_save_cur_scan, queue_size=1)
     rospy.Subscriber('/Odometry', Odometry, cb_save_cur_odom, queue_size=1)
 
-
     cloud_topic = rospy.get_param('cloud_topic', '/cloud_pcd')
     sub = rospy.Subscriber(cloud_topic, PointCloud2, cloud_callback)
     sub_pose = rospy.Subscriber('/pose_topic', PoseWithCovarianceStamped, pose_callback)
@@ -465,11 +527,10 @@ if __name__ == '__main__':
     pub_final_name = rospy.Publisher("/final_name", String, queue_size=1)
     all_done = rospy.Publisher("/find_map_done", Bool, queue_size=1)
     ans_pose = rospy.Publisher("/initialpose", PoseWithCovarianceStamped, queue_size=1)
-    service = rospy.Service('/set_bool', SetBool, handle_set_bool)
-
     pub_cusmap = rospy.Publisher('/map', PointCloud2, queue_size=1)
     pub_score = rospy.Publisher("/current_score", Float64, queue_size=1)
-
+    sub_pose_arr = rospy.Subscriber("/pose_arr_topic", Float64MultiArray, pose_arr_callback)
+    service = rospy.Service('/set_bool', SetBool, handle_set_bool)
 
     while True:
 
@@ -480,7 +541,7 @@ if __name__ == '__main__':
         rospy.logwarn('Waiting for global map......')
         # initialize_global_map(rospy.wait_for_message('/map', PointCloud2))
 
-        initialize_global_map(ros_cloud)
+        initialize_global_map2(ros_cloud)
 
         # 初始化
         while not initialized:
@@ -505,21 +566,5 @@ if __name__ == '__main__':
 
 
     # rospy.spin()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

@@ -18,7 +18,7 @@ import tf.transformations
 import std_msgs.msg
 from threading import Lock
 import threading
-from std_msgs.msg import Bool, String, Int32, Float64
+from std_msgs.msg import Bool, String, Int32, Float64, Float64MultiArray
 
 
 global_map = None
@@ -77,7 +77,10 @@ def direct_load_map():
     rospy.logwarn(direct_map_path)
 
     o3d_cloud = o3d.io.read_point_cloud(direct_map_path)
+
     points = np.asarray(o3d_cloud.points)
+
+    o3d_cloud = None
 
     data = np.zeros(len(points), dtype=[
             ('x', np.float32),
@@ -90,7 +93,12 @@ def direct_load_map():
     data['z'] = points[:, 2]
     if points.shape[1] == 4:
         data['intensity'] = points[:, 3]
+        
+    points = None
+
     ros_cloud = ros_numpy.msgify(PointCloud2, data)
+
+    data = None
 
     header = std_msgs.msg.Header()
     header.stamp = rospy.Time.now()
@@ -273,6 +281,18 @@ def initialize_global_map(pc_msg):
     rospy.loginfo('Global map received.')
 
 
+def initialize_global_map2(pc_msg):
+    global global_map, ros_cloud
+
+    global_map = o3d.geometry.PointCloud()
+    global_map.points = o3d.utility.Vector3dVector(msg_to_array(pc_msg)[:, :3])
+    global_map = voxel_down_sample(global_map, MAP_VOXEL_SIZE)
+    ros_cloud = None
+    rospy.loginfo('Global map received, clear ros_cloud !')
+
+
+
+
 def cb_save_cur_odom(odom_msg):
     global cur_odom
     cur_odom = odom_msg
@@ -349,7 +369,7 @@ if __name__ == '__main__':
     rospy.logwarn('Waiting for global map......')
     #initialize_global_map(rospy.wait_for_message('/map', PointCloud2))
     direct_load_map()
-    initialize_global_map(ros_cloud)
+    initialize_global_map2(ros_cloud)
 
 
     all_done_msg = Bool()
