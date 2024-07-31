@@ -265,7 +265,6 @@ if __name__ == '__main__':
         pose_msg = rospy.wait_for_message('/initialpose', PoseWithCovarianceStamped)
         initial_pose = pose_to_mat(pose_msg)
         if cur_scan:
-            print(cur_scan)
             initialized = global_localization(initial_pose)
         else:
             rospy.logwarn('First scan not received!!!!!')
