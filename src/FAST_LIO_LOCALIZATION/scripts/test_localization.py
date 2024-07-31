@@ -24,6 +24,9 @@ import std_msgs.msg
 import threading
 
 
+GREEN = "\033[92m"
+RESET = "\033[0m"
+
 global_map = None
 initialized = False
 T_map_to_odom = np.eye(4)
@@ -31,30 +34,28 @@ cur_odom = None
 cur_scan = None
 max_score = 0
 
-cloud_topic = None
-pub_final_name = None
-done_pub = None
-g_pose = PoseWithCovarianceStamped()
-mtx = Lock()
+
 g_name = String()
 mtx_name = Lock()
 mtx_num = Lock()
 mtx_result_name = Lock()
 mtx_pose_arr = Lock()
 
-res = []
+res_scores = []
 names = []
 all_poses = []
-
+temp_poses = []
 g_pose_arr = []
 num = -1
 
-all_done = None
-ans_pose = None
-result_pose = None
-ros_cloud = None
+cloud_topic = None
+pub_final_name = None
+pub_cal_done = None
+pub_find_map = None
 pub_cusmap = None
 pub_score = None
+result_pose = None
+ros_cloud = None
 final_result_name = None
 select_map_done = False
 
@@ -168,11 +169,6 @@ def global_localization(pose_estimation):
     transformation, fitness = registration_at_scale(scan_tobe_mapped, global_map_in_FOV, initial=transformation,
                                                     scale=1)
     toc = time.time()
-    rospy.loginfo('Time: {}'.format(toc - tic))
-
-    rospy.loginfo('score: {}'.format(fitness))
-    
-    rospy.loginfo('')
 
     current_score = Float64()
     current_score.data = fitness
@@ -188,12 +184,18 @@ def global_localization(pose_estimation):
         LOCALIZATION_TH = max(LOCALIZATION_TH , max_score)
         if LOCALIZATION_TH > 0.9:
             LOCALIZATION_TH = 0.9
-
-    rospy.loginfo('LOCALIZATION_TH: {}'.format(LOCALIZATION_TH))
+    
+    rospy.loginfo('localization_thresold: {}'.format(LOCALIZATION_TH))
+    rospy.loginfo('Time: {:.2f}'.format(toc - tic))
+    rospy.loginfo('score: {:.2f}'.format(fitness))
 
 
     if fitness > LOCALIZATION_TH:
         # T_map_to_odom = np.matmul(transformation, pose_estimation)
+
+        rospy.loginfo(f"{GREEN}{'Already match!'}{RESET}")
+        rospy.loginfo('')
+
         T_map_to_odom = transformation
         max_score = max(fitness, LOCALIZATION_TH)
 
@@ -208,18 +210,18 @@ def global_localization(pose_estimation):
         return True
     else:
         rospy.logwarn('Not match!!!!')
-        rospy.logwarn('{}'.format(transformation))
-        rospy.logwarn('fitness score:{}'.format(fitness))
+        rospy.loginfo('')
+        # rospy.logwarn('{}'.format(transformation))
+        # rospy.logwarn('fitness score:{}'.format(fitness))
         return False
 
 
-def global_localization3(pose_estimation):
-    global global_map, cur_scan, cur_odom, T_map_to_odom, initialized, LOCALIZATION_TH, max_score
-    # 用icp配准
-    # print(global_map, cur_scan, T_map_to_odom)
-    rospy.loginfo('Global localization by scan-to-map matching......')
 
-    # TODO 这里注意线程安全
+def global_localization2(pose_estimation):
+    global global_map, cur_scan, cur_odom
+    # 用icp配准
+    rospy.loginfo('Selecting maps, matching......')
+
     scan_tobe_mapped = copy.copy(cur_scan)
 
     tic = time.time()
@@ -234,31 +236,9 @@ def global_localization3(pose_estimation):
                                                     scale=1)
     toc = time.time()
     rospy.loginfo('Time: {}'.format(toc - tic))
-
     rospy.loginfo('score: {}'.format(fitness))
     
-    rospy.loginfo('')
-
-
-    current_score = Float64()
-    current_score.data = fitness
-    pub_score.publish(current_score)
-
-
-    # T_map_to_odom = np.matmul(transformation, pose_estimation)
-    T_map_to_odom = transformation
-
-    # 发布map_to_odom
-    map_to_odom = Odometry()
-    xyz = tf.transformations.translation_from_matrix(T_map_to_odom)
-    quat = tf.transformations.quaternion_from_matrix(T_map_to_odom)
-    map_to_odom.pose.pose = Pose(Point(*xyz), Quaternion(*quat))
-    map_to_odom.header.stamp = cur_odom.header.stamp
-    map_to_odom.header.frame_id = 'map'
-
-
-    pub_map_to_odom.publish(map_to_odom)
-
+    return True, fitness
 
 
 
@@ -273,22 +253,19 @@ def voxel_down_sample(pcd, voxel_size):
 
 def initialize_global_map(pc_msg):
     global global_map
-
     global_map = o3d.geometry.PointCloud()
     global_map.points = o3d.utility.Vector3dVector(msg_to_array(pc_msg)[:, :3])
     global_map = voxel_down_sample(global_map, MAP_VOXEL_SIZE)
     rospy.loginfo('Global map received.')
 
 
-
 def initialize_global_map2(pc_msg):
     global global_map, ros_cloud
-
     global_map = o3d.geometry.PointCloud()
     global_map.points = o3d.utility.Vector3dVector(msg_to_array(pc_msg)[:, :3])
     global_map = voxel_down_sample(global_map, MAP_VOXEL_SIZE)
+    ros_cloud = None
     rospy.loginfo('Global map received, clear ros_cloud !')
-
 
 
 def cb_save_cur_odom(odom_msg):
@@ -313,72 +290,17 @@ def cb_save_cur_scan(pc_msg):
     cur_scan = o3d.geometry.PointCloud()
     cur_scan.points = o3d.utility.Vector3dVector(pc[:, :3])
 
-temp_T_map_to_odom = None
+
 def thread_localization():
-    global T_map_to_odom ,select_map_done,  temp_T_map_to_odom
-
-    # if result_pose != None:
-    #     T_odom_to_base_link = pose_to_mat(cur_odom)
-    #     print("T_odom_to_base_link = ", T_odom_to_base_link)
-    #     T_map_to_base_link = np.matmul(result_pose, T_odom_to_base_link)
-    #     # T_base_link_to_map = inverse_se3(T_map_to_base_link)
-    #     T_map_to_odom = T_map_to_base_link
-
-    # if  temp_T_map_to_odom != None :
-    #      T_map_to_odom = temp_T_map_to_odom
-
-
+    global T_map_to_odom, select_map_done
     while True and select_map_done:
         # 每隔一段时间进行全局定位
         rospy.sleep(1 / FREQ_LOCALIZATION)
-
-        print(T_map_to_odom)
         # TODO 由于这里Fast lio发布的scan是已经转换到odom系下了 所以每次全局定位的初始解就是上一次的map2odom 不需要再拿odom了
         global_localization(T_map_to_odom)
 
-    # if select_map_done == False :
-    #      temp_T_map_to_odom = T_map_to_odom
 
-
-
-
-def global_localization2(pose_estimation):
-    global global_map, cur_scan, cur_odom
-    # 用icp配准
-    rospy.loginfo('Global localization by scan-to-map matching......')
-
-    scan_tobe_mapped = copy.copy(cur_scan)
-
-    tic = time.time()
-
-    global_map_in_FOV = crop_global_map_in_FOV(global_map, pose_estimation, cur_odom)
-
-    # 粗配准
-    transformation, _ = registration_at_scale(scan_tobe_mapped, global_map_in_FOV, initial=pose_estimation, scale=5)
-
-    # 精配准
-    transformation, fitness = registration_at_scale(scan_tobe_mapped, global_map_in_FOV, initial=transformation,
-                                                    scale=1)
-    toc = time.time()
-    rospy.loginfo('Time: {}'.format(toc - tic))
-    rospy.loginfo('score: {}'.format(fitness))
-    
-    return True, fitness
-
-
-def publish_cloud():
-            
-    header = std_msgs.msg.Header()
-    header.stamp = rospy.Time.now()
-    header.frame_id = 'map'
-    ros_cloud.header = header
-    pub_cusmap.publish(ros_cloud)
-
-
-
-
-def message_sender():
-
+def publish_map_name():
     rospy.wait_for_message("/find_map_done", Bool)
     rate = rospy.Rate(10) 
     while not rospy.is_shutdown():
@@ -390,8 +312,8 @@ def message_sender():
         rate.sleep()
 
 
-def handle_set_bool(req):
-    rospy.loginfo("Request received: data=%s", req.data)
+def service_callback(req):
+    rospy.loginfo(f"{GREEN}{'Request received: data=%s'}{RESET}", req.data)
     success = True 
     message = "Received true" if req.data else "Received false"
     return SetBoolResponse(success=success, message=message)
@@ -400,33 +322,25 @@ def num_callback(msg):
     global num
     with mtx_num:
         num = msg.data
-        rospy.loginfo("Current num : %d",num)
+        rospy.loginfo("Numbers of maps: %d",num)
 
 def name_callback(msg):
     global g_name
     with mtx_name:
         g_name = msg
 
-def pose_callback(msg):
-    global g_pose
-    with mtx:
-        g_pose = msg
-
 def pose_arr_callback(msg):
     global g_pose_arr
     with mtx_pose_arr:
         g_pose_arr = msg.data
 
-temp_poses = []
    
 def cloud_callback(msg):
-    global result_pose, ros_cloud, final_result_name, res, names, all_poses,select_map_done,g_pose_arr, temp_poses
-    rospy.loginfo("Received point clouds ")
-
+    global result_pose, ros_cloud, final_result_name, res_scores, names, all_poses,select_map_done,g_pose_arr, temp_poses
+    
+    rospy.loginfo("")
+    rospy.logwarn("Received point clouds!")
     select_map_done = False
-    cur_pose = PoseWithCovarianceStamped()
-    with mtx:
-        cur_pose = g_pose
 
     cur_name = String()
     with mtx_name:
@@ -436,23 +350,7 @@ def cloud_callback(msg):
     with mtx_pose_arr:
         cur_pose_arr = g_pose_arr
  
-
     initialize_global_map(msg)
-
-
-    # initial_pose = pose_to_mat(cur_pose)
-    # init = False
-    # while not init:
-    #     if cur_scan:
-    #         init, score = global_localization2(initial_pose)
-    #         res.append(score)
-    #         names.append(cur_name.data)
-    #         all_poses.append(cur_pose)
-    #         rospy.logwarn("cur_name = %s", cur_name.data)
-    #     else:
-    #         # rospy.logwarn('First scan not received!!!!!')
-    #         pass
-
 
     temp_res=[]
     temp_initial_pose=[]
@@ -471,8 +369,6 @@ def cloud_callback(msg):
         pose_with_cov_stamped.pose.covariance = [0] * 36
 
         initial_pose = pose_to_mat(pose_with_cov_stamped)
-
-
         temp_initial_pose.append(pose_with_cov_stamped)
 
         init = False
@@ -480,22 +376,20 @@ def cloud_callback(msg):
             if cur_scan:
                 init, score = global_localization2(initial_pose)
 
-                score +=0.1                
-                for j in temp_poses:
-                    if  j.pose == pose_with_cov_stamped.pose:
-                        score = 0
+                # ignore pose that has been used
+                # for j in temp_poses:
+                #     if  j.pose == pose_with_cov_stamped.pose:
+                #         score = 0
 
                 temp_res.append(score)
-                rospy.logwarn("name = {} ,index = {}, score = {}".format(cur_name.data, i, score))
-                print(pose_with_cov_stamped)
-
+                rospy.loginfo("name = {}, index = {}, score = {:.2f}".format(cur_name.data, i, score))
 
             else:
                 # rospy.logwarn('First scan not received!!!!!')
                 pass
 
     max_index_temp = temp_res.index(max(temp_res))
-    res.append( temp_res[max_index_temp] )
+    res_scores.append( temp_res[max_index_temp] )
     names.append(cur_name.data)
     all_poses.append( temp_initial_pose[max_index_temp] )
 
@@ -504,16 +398,17 @@ def cloud_callback(msg):
     with mtx_num:
         cur_num = num
     
-    if len(res) == cur_num:
-        max_value = max(res)
-        max_index = res.index(max_value)
+    cal_msg = Bool()
+    cal_msg.data = True
+    pub_cal_done.publish(cal_msg)
+    rospy.loginfo(f"{GREEN}{'Calculated current map score done!'}{RESET}")
+
+    if len(res_scores) == cur_num:
+        max_value = max(res_scores)
+        max_index = res_scores.index(max_value)
         name = names[max_index]
         result_pose = all_poses[max_index]
-
         temp_poses.append(result_pose)
-
-        rospy.logwarn("final_map_result = %s",name)
-
 
         with mtx_result_name:
             final_result_name = name
@@ -557,29 +452,17 @@ def cloud_callback(msg):
         ros_cloud.header = header
         pub_cusmap.publish(ros_cloud)
 
-
-        # initialize_global_map2(ros_cloud)
-        # initial_pose = pose_to_mat(result_pose)
-        # global_localization3(initial_pose)
-
-
-        res = []
+        res_scores = []
         names = []
         all_poses = []
         init = False
         select_map_done = True
 
-
         all_done_msg = Bool()
         all_done_msg.data = True
-        all_done.publish(all_done_msg)
+        pub_find_map.publish(all_done_msg)
+        rospy.loginfo(f"{GREEN}{'Find map done!'}{RESET}")
 
-        rospy.logwarn("publish all_done!")
-
-    done_msg = Bool()
-    done_msg.data = True
-    done_pub.publish(done_msg)
-    rospy.loginfo("publish processing_done over!")
 
 
 
@@ -605,7 +488,7 @@ if __name__ == '__main__':
     rospy.init_node('fast_lio_localization')
     rospy.loginfo('Localization Node Inited...')
 
-    sender_thread = threading.Thread(target=message_sender)
+    sender_thread = threading.Thread(target=publish_map_name)
     sender_thread.start()
 
 
@@ -617,19 +500,19 @@ if __name__ == '__main__':
     rospy.Subscriber('/cloud_registered', PointCloud2, cb_save_cur_scan, queue_size=1)
     rospy.Subscriber('/Odometry', Odometry, cb_save_cur_odom, queue_size=1)
 
-    cloud_topic = rospy.get_param('cloud_topic', '/cloud_pcd')
-    sub = rospy.Subscriber(cloud_topic, PointCloud2, cloud_callback)
-    sub_pose = rospy.Subscriber('/pose_topic', PoseWithCovarianceStamped, pose_callback)
-    sub_name = rospy.Subscriber("/map_name", String, name_callback)
-    sub_num = rospy.Subscriber("/map_num", Int32, num_callback)
-    done_pub = rospy.Publisher('/processing_done', Bool, queue_size=1)
+
+    pub_cal_done = rospy.Publisher('/processing_done', Bool, queue_size=1)
     pub_final_name = rospy.Publisher("/final_name", String, queue_size=1)
-    all_done = rospy.Publisher("/find_map_done", Bool, queue_size=1)
-    ans_pose = rospy.Publisher("/initialpose", PoseWithCovarianceStamped, queue_size=1)
+    pub_find_map = rospy.Publisher("/find_map_done", Bool, queue_size=1)
     pub_cusmap = rospy.Publisher('/map', PointCloud2, queue_size=1)
     pub_score = rospy.Publisher("/current_score", Float64, queue_size=1)
+
+    cloud_topic = rospy.get_param('cloud_topic', '/cloud_pcd')
+    sub_cloud = rospy.Subscriber(cloud_topic, PointCloud2, cloud_callback)
+    sub_name = rospy.Subscriber("/map_name", String, name_callback)
+    sub_num = rospy.Subscriber("/map_num", Int32, num_callback)
     sub_pose_arr = rospy.Subscriber("/pose_arr_topic", Float64MultiArray, pose_arr_callback)
-    service = rospy.Service('/set_bool', SetBool, handle_set_bool)
+    service = rospy.Service('/set_bool', SetBool, service_callback)
 
     while True:
 
@@ -639,26 +522,19 @@ if __name__ == '__main__':
         # 初始化全局地图
         rospy.logwarn('Waiting for global map......')
 
-        # pub_roscloud = threading.Thread(target=publish_cloud)
-        # pub_roscloud.start()
-
         # initialize_global_map(rospy.wait_for_message('/map', PointCloud2))
-
-
         initialize_global_map2(ros_cloud)
         
         # 初始化
         initialized = False
         while not initialized:
-            rospy.logwarn('Waiting for initial pose....')
-
-            pose_msg = result_pose
-
-            # 等待初始位姿
-            # pose_msg = rospy.wait_for_message('/initialpose', PoseWithCovarianceStamped)
-            initial_pose = pose_to_mat(pose_msg)
 
             if cur_scan:
+
+                rospy.logwarn('Waiting for initial pose....')
+                pose_msg = result_pose
+                initial_pose = pose_to_mat(pose_msg)
+
                 initialized = global_localization(initial_pose)
                 rospy.sleep(0.05)
 
@@ -666,12 +542,10 @@ if __name__ == '__main__':
                 rospy.logwarn('First scan not received!!!!!')
 
         rospy.loginfo('')
-        rospy.loginfo('Initialize successfully!!!!!!')
+        rospy.loginfo('Initialized successfully!!!!!!')
         rospy.loginfo('')
         # 开始定期全局定位
         thread.start_new_thread(thread_localization, ())
 
-
-    # rospy.spin()
 
 

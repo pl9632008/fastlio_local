@@ -20,6 +20,8 @@ from threading import Lock
 import threading
 from std_msgs.msg import Bool, String, Int32, Float64, Float64MultiArray
 
+GREEN = "\033[92m"
+RESET = "\033[0m"
 
 global_map = None
 initialized = False
@@ -36,10 +38,9 @@ final_result_name = None
 pub_final_name = None
 result_pose = None
 
-
 mtx_result_name = Lock()
 
-def message_sender():
+def publish_map_name():
     global final_result_name
     rospy.wait_for_message("/find_map_done", Bool)
     rate = rospy.Rate(10) 
@@ -50,8 +51,6 @@ def message_sender():
         pub_final_name.publish(res_name)
         # rospy.loginfo('final_name =  {}'.format(res_name.data))
         rate.sleep()
-
-
 
 
 def direct_load_map():
@@ -220,33 +219,28 @@ def global_localization(pose_estimation):
     transformation, fitness = registration_at_scale(scan_tobe_mapped, global_map_in_FOV, initial=transformation,
                                                     scale=1)
     toc = time.time()
-    rospy.loginfo('Time: {}'.format(toc - tic))
-
-    rospy.loginfo('score: {}'.format(fitness))
-    
-    rospy.loginfo('')
-
-    
+   
     current_score = Float64()
     current_score.data = fitness
     pub_score.publish(current_score)
 
-
     # 当全局定位成功时才更新map2odom
     if initialized == False:
         LOCALIZATION_TH = 0.6
-        
     elif initialized == True:
-
         LOCALIZATION_TH = max(LOCALIZATION_TH , max_score)
         if LOCALIZATION_TH > 0.9:
             LOCALIZATION_TH = 0.9
 
-    rospy.loginfo('LOCALIZATION_TH: {}'.format(LOCALIZATION_TH))
-
+    rospy.loginfo('localization_thresold: {}'.format(LOCALIZATION_TH))
+    rospy.loginfo('Time: {:.2f}'.format(toc - tic))
+    rospy.loginfo('score: {:.2f}'.format(fitness))
 
     if fitness > LOCALIZATION_TH:
         # T_map_to_odom = np.matmul(transformation, pose_estimation)
+        rospy.loginfo(f"{GREEN}{'Already match!'}{RESET}")
+        rospy.loginfo('')
+
         T_map_to_odom = transformation
         max_score = max(fitness, LOCALIZATION_TH)
 
@@ -261,8 +255,10 @@ def global_localization(pose_estimation):
         return True
     else:
         rospy.logwarn('Not match!!!!')
-        rospy.logwarn('{}'.format(transformation))
-        rospy.logwarn('fitness score:{}'.format(fitness))
+        rospy.loginfo('')
+
+        # rospy.logwarn('{}'.format(transformation))
+        # rospy.logwarn('fitness score:{:.2f}'.format(fitness))
         return False
 
 
@@ -292,8 +288,6 @@ def initialize_global_map2(pc_msg):
     global_map = voxel_down_sample(global_map, MAP_VOXEL_SIZE)
     ros_cloud = None
     rospy.loginfo('Global map received, clear ros_cloud !')
-
-
 
 
 def cb_save_cur_odom(odom_msg):
@@ -351,7 +345,7 @@ if __name__ == '__main__':
 
     rospy.init_node('fast_lio_localization')
     rospy.loginfo('Localization Node Inited...')
-    sender_thread = threading.Thread(target=message_sender)
+    sender_thread = threading.Thread(target=publish_map_name)
     sender_thread.start()
 
     # publisher
@@ -365,7 +359,7 @@ if __name__ == '__main__':
     pub_cusmap = rospy.Publisher('/map', PointCloud2, queue_size=1)
     pub_score = rospy.Publisher("/current_score", Float64, queue_size=1)
     pub_final_name = rospy.Publisher("/final_name", String, queue_size=1)
-    all_done = rospy.Publisher("/find_map_done", Bool, queue_size=1)
+    pub_find_map = rospy.Publisher("/find_map_done", Bool, queue_size=1)
 
     use_config_pose = rospy.get_param("use_config_pose","")
 
@@ -376,15 +370,12 @@ if __name__ == '__main__':
     direct_load_map()
     initialize_global_map2(ros_cloud)
 
-
     all_done_msg = Bool()
     all_done_msg.data = True
-    all_done.publish(all_done_msg)
-
+    pub_find_map.publish(all_done_msg)
 
     # 初始化
     while not initialized:
-        rospy.logwarn('Waiting for initial pose....')
 
         # 等待初始位姿
         if use_config_pose:
@@ -392,17 +383,17 @@ if __name__ == '__main__':
             rospy.sleep(0.1)
 
         else:
+            rospy.logwarn('Waiting for initial pose....')
             pose_msg = rospy.wait_for_message('/initialpose', PoseWithCovarianceStamped)
         
         initial_pose = pose_to_mat(pose_msg)
         if cur_scan:
-            print(cur_scan)
             initialized = global_localization(initial_pose)
         else:
             rospy.logwarn('First scan not received!!!!!')
 
     rospy.loginfo('')
-    rospy.loginfo('Initialize successfully!!!!!!')
+    rospy.loginfo('Initialized successfully!!!!!!')
     rospy.loginfo('')
     # 开始定期全局定位
     thread.start_new_thread(thread_localization, ())
