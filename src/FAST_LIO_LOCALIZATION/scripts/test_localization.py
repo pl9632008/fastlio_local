@@ -404,10 +404,9 @@ def cloud_callback(msg):
     pub_cal_done.publish(cal_msg)
     rospy.loginfo(f"{GREEN}{'Calculated current map score done!'}{RESET}")
 
-    if cur_num == None:
-        cur_num = valid_num
+    rospy.loginfo(f"{GREEN}{'len of res_scores = {}, valid_num = {}'.format(len(res_scores), valid_num)}{RESET}")
 
-    if len(res_scores) == cur_num:
+    if len(res_scores) == valid_num:
         max_value = max(res_scores)
         max_index = res_scores.index(max_value)
         name = names[max_index]
@@ -519,6 +518,7 @@ if __name__ == '__main__':
     sub_name = rospy.Subscriber("/map_name", String, name_callback)
     sub_num = rospy.Subscriber("/map_num", Int32, num_callback)
     sub_pose_arr = rospy.Subscriber("/pose_arr_topic", Float64MultiArray, pose_arr_callback)
+
     service = rospy.Service('/set_bool', SetBool, service_callback)
 
     while True:
