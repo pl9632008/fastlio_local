@@ -17,7 +17,7 @@
 
 
 	<param name="max_len" type="int" value="5000"/>
-
+	<param name="valid_num" type="int" value="2"/>
 
 	<!-- loalization-->
 	<node pkg="fast_lio_localization" type="test_localization.py" name="global_localization" output="screen" />

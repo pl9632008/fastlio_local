@@ -47,6 +47,7 @@ all_poses = []
 temp_poses = []
 g_pose_arr = []
 num = -1
+valid_num = 0
 
 cloud_topic = None
 pub_final_name = None
@@ -403,6 +404,9 @@ def cloud_callback(msg):
     pub_cal_done.publish(cal_msg)
     rospy.loginfo(f"{GREEN}{'Calculated current map score done!'}{RESET}")
 
+    if cur_num == None:
+        cur_num = valid_num
+
     if len(res_scores) == cur_num:
         max_value = max(res_scores)
         max_index = res_scores.index(max_value)
@@ -506,6 +510,9 @@ if __name__ == '__main__':
     pub_find_map = rospy.Publisher("/find_map_done", Bool, queue_size=1)
     pub_cusmap = rospy.Publisher('/map', PointCloud2, queue_size=1)
     pub_score = rospy.Publisher("/current_score", Float64, queue_size=1)
+
+
+    valid_num = rospy.get_param('valid_num')
 
     cloud_topic = rospy.get_param('cloud_topic', '/cloud_pcd')
     sub_cloud = rospy.Subscriber(cloud_topic, PointCloud2, cloud_callback)
