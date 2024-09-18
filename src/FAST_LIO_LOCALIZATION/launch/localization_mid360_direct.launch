@@ -41,8 +41,7 @@
 	</include>
 
 
-	<node name = "map_server" pkg = "map_server" type = "map_server" args="$(find fast_lio)/PCD/map.yaml  /map:=prior_map" >
-			<param name="rate" value="1"/>
+	<node name = "map_server" pkg = "map_server" type = "map_server" args="$(find fast_lio)/PCD/map_test3.yaml  /map:=prior_map" >
 
 	</node>
 
