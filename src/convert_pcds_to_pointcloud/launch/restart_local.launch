@@ -1,0 +1,6 @@
+<launch>
+    <node pkg="convert_pcds_to_pointcloud" type="restart_local" name="restart_local" output="screen" launch-prefix="xterm -e"  /> 
+    <param name="count_thresh" type="int" value="50"/>
+    <param name="vel_thresh" type="double" value="5"/>
+    <param name="distance_thresh" type="double" value="60"/>
+</launch>

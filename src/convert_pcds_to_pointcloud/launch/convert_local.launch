@@ -1,0 +1,18 @@
+<launch>
+    <arg name="valid_num_arg" default="2"/>
+    <arg name="map_dir" default="/home/nvidia/wjd/fast_lio/src/FAST_LIO/PCD" />
+    <param name="map_path" type="string" value="$(arg map_dir)"/>
+
+    <include file="$(find fast_lio_localization)/launch/localization_horizon_test.launch">
+        <arg name="map_dir" value="$(arg map_dir)" />
+       	<arg name="valid_num_arg" value ="$(arg valid_num_arg)"/>
+    </include>
+
+    <node pkg="convert_pcds_to_pointcloud" type="pub_cloud" name="pub_cloud" output="screen" launch-prefix="xterm -e" /> 
+    <node pkg="convert_pcds_to_pointcloud" type="sub_odometry" name="sub_odometry" output="screen" launch-prefix="xterm -e"  /> 
+    <rosparam command="load" file="$(find convert_pcds_to_pointcloud)/config/config.yaml"/>
+    <param name="frame_id" type="string" value="map"/>
+    <param name="cloud_topic" type="string" value="/cloud_pcd"/>
+    <param name="distance_thresh" type="double" value="60"/>
+
+</launch>

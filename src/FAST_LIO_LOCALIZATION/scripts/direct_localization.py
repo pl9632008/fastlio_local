@@ -327,11 +327,10 @@ if __name__ == '__main__':
     SCAN_VOXEL_SIZE = 0.1
 
     # Global localization frequency (HZ)
-    FREQ_LOCALIZATION = 0.5
-
+    FREQ_LOCALIZATION = 10
     # The threshold of global localization,
     # only those scan2map-matching with higher fitness than LOCALIZATION_TH will be taken
-    LOCALIZATION_TH = 0.95
+    LOCALIZATION_TH = 0.8
     
 
     # FOV(rad), modify this according to your LiDAR type
@@ -341,7 +340,7 @@ if __name__ == '__main__':
 
     # The farthest distance(meters) within FOV
     # FOV_FAR = 150
-    FOV_FAR = 150
+    FOV_FAR = 100
 
     rospy.init_node('fast_lio_localization')
     rospy.loginfo('Localization Node Inited...')

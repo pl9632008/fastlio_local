@@ -1,6 +1,6 @@
 <launch>
 <!-- Launch file for Livox Horizon LiDAR -->
-    <include file="$(find convert_pcds_to_pointcloud)/launch/sub_odometry.launch"/>
+    <!-- <include file="$(find convert_pcds_to_pointcloud)/launch/sub_odometry.launch"/> -->
 
     <rosparam command="load" file="$(find fast_lio_localization)/config/config.yaml"/>
 
@@ -19,9 +19,9 @@
 	<param name="pcd_save_enable" type="bool" value="0" />
     <node pkg="fast_lio_localization" type="fastlio_mapping" name="laserMapping" output="screen"  />
 
-	<param name="direct_map_path" type="string" value="/home/nvidia/wjd/fastlio/src/FAST_LIO/PCD/test9.pcd"/>
+	<param name="direct_map_path" type="string" value="/home/nvidia/wjd/pcds/test.pcd"/>
 	<param name="max_len" type="int" value="10000"/>
-	<param name="use_config_pose" type="int" value="1"/>
+	<param name="use_config_pose" type="int" value="0"/>
 
 
 	<!-- loalization-->
