@@ -1,7 +1,8 @@
 <launch>
     <arg name="valid_num_arg" default="2"/>
-    <arg name="map_dir" default="/home/nvidia/wjd/fast_lio/src/FAST_LIO/PCD" />
-    <param name="map_path" type="string" value="$(arg map_dir)"/>
+    <arg name="map_dir" default="/home/nvidia/wjd/testlocalpcds/filtered_maps" />
+    <arg name="matched_map_dir" default="/home/nvidia/wjd/testlocalpcds/matched_maps" />
+    <param name="matched_path" type="string" value="$(arg matched_map_dir)"/>
 
     <include file="$(find fast_lio_localization)/launch/localization_horizon_test.launch">
         <arg name="map_dir" value="$(arg map_dir)" />

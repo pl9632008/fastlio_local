@@ -421,6 +421,9 @@ def cloud_callback(msg):
         # pub_final_name.publish(res_name)
 
         map_path = rospy.get_param('map_path', '')
+
+        name = name.replace("_matched","")
+
         file_path = map_path + "/" + name + ".pcd"
 
         rospy.logwarn(file_path)
@@ -472,7 +475,7 @@ def cloud_callback(msg):
 
 if __name__ == '__main__':
     MAP_VOXEL_SIZE = 0.4
-    SCAN_VOXEL_SIZE = 0.1
+    SCAN_VOXEL_SIZE = 0.4
 
     # Global localization frequency (HZ)
     FREQ_LOCALIZATION = 0.5
@@ -483,10 +486,10 @@ if __name__ == '__main__':
 
     # FOV(rad), modify this according to your LiDAR type
     # FOV = 1.6
-    FOV = 2.09
+    FOV = 2.0
 
     # The farthest distance(meters) within FOV
-    FOV_FAR = 150
+    FOV_FAR = 100
 
     rospy.init_node('fast_lio_localization')
     rospy.loginfo('Localization Node Inited...')

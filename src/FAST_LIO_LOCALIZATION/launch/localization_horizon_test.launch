@@ -18,13 +18,13 @@
 
 	<param name="max_len" type="int" value="5000"/>
 
-	<arg name="valid_num_arg" default ="3"/>
+	<arg name="valid_num_arg" default ="2"/>
 	<param name="valid_num" type="int" value="$(arg valid_num_arg)"/>
 
 	<!-- loalization-->
 	<node pkg="fast_lio_localization" type="test_localization.py" name="global_localization" output="screen" />
 
-    <arg name="map_dir" default="/home/nvidia/wjd/fast_lio/src/FAST_LIO/PCD" />
+    <arg name="map_dir" default="/home/nvidia/wjd/testlocalpcds/maps"/>
     <param name="map_path" type="string" value="$(arg map_dir)"/>
 
 	<!-- transform  fusion-->

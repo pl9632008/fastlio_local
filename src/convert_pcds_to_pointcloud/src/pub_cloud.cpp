@@ -202,9 +202,9 @@ int main(int argc, char* argv[]) {
     ros::init(argc, argv, "pub_cloud");
     ros::NodeHandle nh;
 
-    std::string map_path;
-    if (!nh.getParam("map_path", map_path)) {
-        ROS_ERROR("Failed to get parameter 'map_path'");
+    std::string matched_path;
+    if (!nh.getParam("matched_path", matched_path)) {
+        ROS_ERROR("Failed to get parameter 'matched_path'");
         return 1;
     }
 
@@ -222,10 +222,10 @@ int main(int argc, char* argv[]) {
 
     client = nh.serviceClient<std_srvs::SetBool>("/set_bool");
 
-    auto maps = listFiles(map_path, ".pcd");
+    auto maps = listFiles(matched_path, ".pcd");
 
     if (maps.empty()) {
-        ROS_WARN("No PCD files found in directory '%s'", map_path.c_str());
+        ROS_WARN("No PCD files found in directory '%s'", matched_path.c_str());
         return 0;
     } else{
         loadAndPublish(maps, nh);
